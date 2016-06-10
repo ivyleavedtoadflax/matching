@@ -1,0 +1,125 @@
+---
+title: "cem_vignette"
+output: html_document
+---
+# Mitigating bias in the analysis of causal effects in observational studies
+
+Coarsened exact matching (CEM) is designed to improve the estimation of causal effects via an extremely powerful method of matching that is widely applicable and exceptionally easy to understand and use (Iacus et al., 2012).  
+
+## The problem
+
+Observational data tend to be technically and logistically easier to collect than randomised experimental data, hence tends to be more readily available. However, it comes with  issues such as the treatment assignment mechanism which is likely to be non-random and unknown. This results in the distribution of the covariates (X) in the treatment groups being dissimiliar. Thus we must try to match the treatment and control groups across variables to mitigate bias.
+
+First, since it is generally not wise to obtain a very precise estimate of a drastically wrong quantity, the investigator should be more concerned about having an estimate with small bias than one with small variance. Second, since in many observational studies the sample sizes are sufficiently large that sampling variances of estimators will be small, the sensitivity of estimators to biases is the dominant source of uncertainty. CEM is a researchers first line of defense against such problems.
+
+
+## Basic evaluation and analysis of unmatched data
+
+We begin with a naive estimate of the sample average treatment effect on the treated (SATT) which would be useful only if the in-sample distribution of pre-treatment covariates were the same in the treatment and control groups:
+
+```{r, echo=FALSE, message=FALSE}
+
+if (!require("cem")) {
+  install.packages("cem")
+  require("cem")
+} # load the package and install it if it's not installed
+
+if (!require("dplyr")) {
+  install.packages("dplyr")
+  require("dplyr")
+}
+
+data(LeLonde)  # load the LeLonde data
+Le <- data.frame(na.omit(LeLonde))  # rename it after removing missing values
+
+```
+
+We load the package, load the LeLonde data then remove missing data from the the data set before starting the analysis. We then look at the data using the `glimpse()` function.
+
+```{r}
+glimpse(Le)
+```
+
+This is a modified version of the Lalonde experimental dataset used for explanatory reasons only (LaLonde, 1986). The program provided training (`treated` = 1) to the participants for 12-18 months and helped them in finding a job. The goal of the program was to increase participants' earnings, and so 1978 earnings (`re78`) is the key outcome variable. All the other variables can be considered covariates. Some of these are dichotomous (married, nodegree, black, Hispanic, u74, and u75), some are categorical (age and education), and the earnings variables are continuous and highly skewed, with point masses at zero.
+
+```{r, echo=TRUE}
+
+tr <- which(Le$treated == 1)
+ct <- which(Le$treated == 0)
+ntr <- length(tr)  # count the number in the treated group
+nct <- length(ct)  # count the number in the control group
+ntr
+nct
+
+```
+
+We see that there are more control (`r nct`) than treated individuals (`r ntr`). We can naively estimate the SATT by looking at the difference in the mean of the response variable between groups.
+
+```{r, echo=TRUE}
+
+mean(Le$re78[tr]) - mean(Le$re78[ct])
+
+```
+
+This suggests that treated individuals on average earn $`r round(mean(Le$re78[tr]) - mean(Le$re78[ct]))` more than non-treated.
+
+Because the variable treated was not randomly assigned, the pre-treatment covariates
+differ between the treated and control groups. This demonstrates that one cannot recover SATT from the observational data set in part because the data are highly imbalanced and relatively few good matches exist within the control group. To see this, we focus on these pre-treatment covariates:
+
+```{r, echo=TRUE}
+
+vars <- c("age", "education", "black", "married", "nodegree", "re74", "re75", "hispanic", "u74", "u75", "q1")  # create a vector of covariate names
+
+imbalance(group = Le$treated, data = Le[vars])
+
+```
+
+The overall imbalance is given by the statistic L~1~. This is very important as  even if the marginal distribution of every variable is perfectly balanced, the joint distribution can still be highly imbalanced.  
+
+The first column in the table of unidimensional measures, labeled statistic, reports the
+difference in means for numerical variables (indicated by the second column, type, reporting (`diff`)) or a chi-square difference for categorical variables (when the second column reports (`Chi2`)). The second column, labeled L~1~, reports the L~j1~ measure, which is L~1~ computed for the j~th~ variable separately (which of course does not include interactions). The remaining columns in the table report the difference in the empirical quantile of the distributions of the two groups for the 0~th~ (min), 25~th~, 50~th~, 75~th~, and 100~th~ (max) percentiles for each variable. When the variable type is Chi^2^, the only variable-by-variable measure that is defined in this table is L~j~
+1; others are reported missing.
+
+Broadly speaking: This particular table shows that variables `re74` and `re75` are imbalanced in the raw data in many ways and variable age is balanced in means but not in the quantiles of the two distributions.
+
+## Automated Coarsenening
+
+In our running example we have a dichotomous treatment variable. In the following code, we match on all variables but `re78`, which is the outcome variable and so should never be included. Hence we proceed specifying `re78` in argument drop:
+
+```{r, echo=TRUE}
+
+mat <- cem(treatment = "treated", data = Le, drop = "re78", eval.imbalance = TRUE)
+mat
+
+```
+We can see from these results the number of observations matched and thus retained,
+as well as those which were pruned because they were not comparable. We can also see reduction in the imbalance of the new matched data with a reduction in L~1~ (by setting the `eval.imbalance` argument to `TRUE`).
+
+
+## Estimating the SATT from `cem()` output using `att()`
+
+```{r, echo=TRUE}
+
+data(LL)
+mat <- cem(treatment = "treated", data = LL, drop = "re78")
+#mat$matched  # provides a vector of 1 and 0 if matched and not, useful for selection
+est <- att(mat, re78 ~ treated, data = LL) 
+est
+
+```
+Compare this estimate of $550 to our earlier naive estimate of $759. Note the 95% CI includes zero hence the p value is not significant.This information will be useful in determining the cost-benefit ratio for this intervention and allow a comparison to other interventions available.
+
+## Conclusion
+
+This package has the flexibility to match our data and then use an appropriate general linear model for parameter estimation. When used properly with informative data, CEM can reduce model dependence and bias and improve efficiency, across a wide range of potential applications. This will mitigate the bias inherent in making causal inferences from observational data assisting Charities in improving their estimation of the effect size of their interventions on the target group.
+
+***
+
+## References
+* Iacus, S. M., King, G., & Porro, G. (2012). Causal inference without balance checking: Coarsened exact matching. Political Analysis, 20(1), 1-24. http://doi.org/10.1093/pan/mpr013  
+* Lalonde, R. (1986) "Evaluating the Econometric Evaluations of Training Programs," American Economic Review, 76, 604-620
+
+```{r}
+sessionInfo()
+```
+

@@ -1,0 +1,435 @@
+---
+title: "Matching examples"
+author: "Matthew Upson"
+date: "9 June 2016"
+output: html_document
+---
+
+```{r,warning=FALSE,message=FALSE}
+
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE,
+  error = FALSE
+  )
+
+```
+
+# Matching methods
+
+## 1: Propensity score matching
+
+The example shown here is reproduced from [Sekhon (2011)](http://sekhon.berkeley.edu/papers/MatchingJSS.pdf).
+See also teh package homepage: <http://sekhon.berkeley.edu/matching/>.
+
+```{r}
+
+# Load required packages:
+
+library(dplyr)
+library(Matching)
+
+```
+
+This example uses the Lalonde dataset from the Matching package: 
+
+```{r}
+# Load the lalonde data 
+
+data("lalonde") 
+
+summary(lalonde)
+str(lalonde)
+
+```
+
+```{r}
+## outcome of interest and treatment indicator
+## Re-label for later use
+
+Y <- lalonde$re78
+Tr <- lalonde$treat
+  
+# estimate first propensity model using a glm
+
+```
+
+The first substantice step is define a model for our glm. 
+Note that this is a step that is peculiar to PSM compared to other matching methods, and is one reason why I believe it should not be favoured. 
+Matching will only be as good as the fit of the model that is chosen, adding an additional level of complexity to the process.
+
+```{r}
+
+glm_formula <- formula(Tr ~ 
+    age + educ + black + 
+    hisp + married + nodegr + 
+    re74 + re75
+    )
+
+## You can define the formula in the glm call istelf, but there are situations
+## where it is preferable not to.
+
+glm1 <- glm(
+  glm_formula,
+  family = binomial,
+  data = lalonde
+)
+
+```
+
+We can check the outcome of the model as usual with:
+
+
+```{r}
+
+summary(glm1)
+
+```
+
+But in many respects, this is less important than checking the balance of the matching process itself, which we will do later
+
+```{r}
+## Now one to one matching with replacement. We will use the fitted values (the
+## propensity score) from the glm as argument X within the Match call.
+
+## These are values between 0 and 1. Just out of interest, we can plot these 
+## out. This gives us an indication of how the propensity scores match across
+## treatments.
+
+library(ggplot2)
+
+data_frame(
+  Tr = factor(Tr), 
+  PSM = glm1$fitted.values
+) %>%
+  ggplot +
+  aes(
+    y = PSM,
+    x = Tr,
+    group = Tr,
+    colour = Tr
+  ) +
+  geom_point()
+
+```
+
+Now run the Matching itself based on the above glm. 
+
+```{r}
+
+
+glm1$fitted %>% unname %>% head
+
+rr1 <- Match(
+  Y = Y, 
+  Tr = Tr, 
+  # Take the fitted values 
+  X = glm1$fitted.values,
+  # See ?Match. Running on a DfE machien with a large dataset will probably
+  # require ties to be broken with ties = FALSE. This means that a random match
+  # will be chosen if multiple possibilities exist
+  ties = TRUE,
+  # See Sekhon 2011 for an explanation of ATT. In almost all cases, you will
+  # want to use ATT.
+  estimand = "ATT",
+  # caliper sets the threshold to allow matching. If a potential match is beyond
+  # the threshold caliper, then it is not included as a match. This can take 
+  # either a scalar or a vector of scalars equal in length to the number of 
+  # input varoables. In general I haven't tended to play with this, but it could
+  # be used to improve matching outcomes. Note that the caliper itself is a
+  # proportion of the standard deviation of the given variable. See ?mMtch
+  caliper = 0.25
+)
+
+```
+
+We need to call `summary()` to see the result of the match.
+This will give us a sense of how succesful the matching has been.
+We can see how many successful matches there have been.
+By changing the `caliper` you will see that the number of succesful matches will change.
+A higher `caliper` will give better matching, but a lower final sample for any statistical test.
+
+```{r}
+
+summary(rr1)
+
+```
+
+The `summary()` above also runs a statistical..
+
+```{r}
+## Now check the balance of our propensity score model. Note that this model uses many more variables than the model itself.
+
+MatchBalance(
+  Tr ~ 
+    age + I(age^2) + educ + 
+    I(educ^2) + black + hisp +
+    married + nodegr + re74 +
+    I(re74^2) + re75 + I(re75^2) + 
+    u74 + u75 + I(re74 * re75) + 
+    I(age * nodegr) + I(educ * re74) + 
+    I(educ * re75),
+  match.out = rr1, 
+  nboots = 1000, 
+  data = lalonde
+)
+
+## Consider nodegr See summary statistics. First set shows means for treatment 
+## and control and mean difference in standard deviation. Second set shows
+## statistics based on the raw empirical-QQ plots, and hence are in the same
+## scale as the variable being tested. The third set of statistics are the same
+## empirical QQ statistics, but this time standardised. Finally there is the
+## variance ration - the closer this is to 1, the better the match, and a
+## p-value from a t-test of the difference of the means (not paired). For nodegr
+## there were significant differences between treatments before and after
+## matching.
+
+# Now for re74.
+
+qqplot(
+  lalonde$re74[rr1$index.control], 
+  lalonde$re74[rr1$index.treated]
+  )
+
+abline(
+  coef = c(0, 1), 
+  col = 2
+  )
+
+```
+
+## 2: Mahalanobis distance
+
+```{r}
+### Try matching again with Mahalanobis distance
+
+X <- lalonde %>%
+  dplyr::select(
+    age,
+    educ,
+    black,
+    hisp,
+    married,
+    nodegr,
+    re74,
+    re75
+    )
+
+X
+
+```
+
+Now one to one matching with replacement
+
+```{r}
+
+rr2 <- Match(
+  Y = Y, 
+  Tr = Tr, 
+  X = X,
+  # Weight = 2 will use Mahalanobis distance as the distance metric
+  Weight = 2
+  )
+
+```
+Now look at the summary
+
+```{r}
+
+summary(rr2)
+
+```
+
+Now check match balance
+
+```{r}
+
+
+MatchBalance(
+  Tr ~ 
+    age + I(age^2) + educ + 
+    I(educ^2) + black + hisp +
+    married + nodegr + re74 +
+    I(re74^2) + re75 + I(re75^2) + 
+    u74 + u75 + I(re74 * re75) + 
+    I(age * nodegr) + I(educ * re74) + 
+    I(educ * re75),
+  match.out = rr2, 
+  nboots = 1000, 
+  data = lalonde
+)
+
+```
+
+## 3: Genetic Matching
+
+```{r}
+
+X <- lalonde %>% 
+  dplyr::select(
+    age, educ, black, hisp, married, nodegr, re74, re75, u74, u75
+  )
+
+
+BalanceMatrix <- lalonde %>%
+  transmute(
+    age, I(age^2), educ, I(educ^2), black, hisp,
+    married, nodegr, re74, I(re74^2), re75, I(re75^2), 
+    u74, u75, I(re74 * re75), I(age * nodegr), I(educ * re74),
+    I(educ * re75)
+  )
+
+gen1 <- GenMatch(
+  Tr = Tr, 
+  X = X, 
+  BalanceMatrix = BalanceMatrix, 
+  pop.size = 1000
+)
+```
+
+check summary
+
+```{r}
+
+mgen1 <- Match(
+  Y = Y, 
+  Tr = Tr, 
+  X = X, 
+  Weight.matrix = gen1
+  )
+
+MatchBalance(
+  Tr ~ 
+    age + I(age^2) + educ + 
+    I(educ^2) + black + hisp + 
+    married + nodegr + re74 + 
+    I(re74^2) + re75 + I(re75^2) + 
+    u74 + u75 + I(re74 * re75) + 
+    I(age * nodegr) + I(educ * re74) + I(educ * re75),
+  data = lalonde, 
+  match.out = mgen1, 
+  nboots = 10
+)
+
+summary(mgen1)
+
+```
+
+## CEM
+
+```{r}
+
+library(cem)
+
+X1 <- lalonde %>%
+  dplyr::select(
+    treat, age, educ, black, hisp, 
+    married, nodegr, re74, re75, re78
+  ) %>%
+  mutate(
+    black = factor(black),
+    hisp = factor(hisp),
+    married = factor(married),
+    nodegr = factor(nodegr),
+    re74,
+    re75,
+    re78
+  )
+
+imbalance(
+  group = X1$treat, 
+  data = dplyr::select(X1,-treat)
+)
+
+mat <- cem(
+  treatment = "treat",
+  data = X1,
+  drop = "re78",
+  eval.imbalance = TRUE
+)
+
+mat
+
+```
+
+
+
+```{r}
+
+est <- att(mat, re78 ~ treat, data = X1) 
+est
+
+```
+
+# Comparison
+
+```{r}
+
+par(mfrow = c(2,2))
+
+qqplot(
+  lalonde$re74[rr1$index.control], 
+  lalonde$re74[rr1$index.treated],
+  main = "Propensity score matching",
+  xlab = "Control",
+  ylab = "Treatment"
+)
+
+abline(
+  coef = c(0, 1), 
+  col = 2
+)
+
+qqplot(
+  lalonde$re74[rr2$index.control], 
+  lalonde$re74[rr2$index.treated],
+  main = "Mahalanobis distance matching",
+  xlab = "Control",
+  ylab = "Treatment"
+)
+
+abline(
+  coef = c(0, 1), 
+  col = 2
+)
+
+qqplot(
+  lalonde$re74[mgen1$index.control], 
+  lalonde$re74[mgen1$index.treated],
+  main = "Genetic matching algorithm",
+  xlab = "Control",
+  ylab = "Treatment"
+)
+
+abline(
+  coef = c(0, 1), 
+  col = 2
+)
+
+library(magrittr)
+
+qqplot(
+  X1 %>% dplyr::filter(mat$matched,treat == 0) %$% re74,
+  X1 %>% dplyr::filter(mat$matched,treat == 1) %$% re74,
+  main = "Coarsened Exact Matching",
+  xlab = "Control",
+  ylab = "Treatment"
+)
+
+abline(
+  coef = c(0, 1), 
+  col = 2
+)
+
+```
+
+# Reproducibility info
+```{r}
+.libPaths()
+sessionInfo()
+```
+
+# References
+
+Sekhon, J. (2011). Multivariate and Propensity Score Matching Software with Automated Balance Optimization: The Matching Package for R. *Journal of statistical software*, 42, 7. Available at <http://sekhon.berkeley.edu/papers/MatchingJSS.pdf>
+

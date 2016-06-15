@@ -15,6 +15,17 @@ knitr::opts_chunk$set(
 
 ```
 
+```{r echo=FALSE,include=FALSE}
+install.packages(
+    c(
+        "dplyr",
+        "Matching",
+        "magrittr",
+        "cem"
+    )
+)
+```
+
 # Matching methods
 
 ## 1: Propensity score matching
@@ -28,7 +39,6 @@ See also teh package homepage: <http://sekhon.berkeley.edu/matching/>.
 
 library(dplyr)
 library(Matching)
-library(ggplot2)
 library(cem)
 library(magrittr)
 

@@ -1,6 +1,9 @@
 language: r
-sudo: false
+sudo: required
 cache: packages
+
+git:
+  depth: 3
 
 r_packages:
   - rmarkdown
@@ -8,6 +11,17 @@ r_packages:
   - cem
   - dplyr
   - magrittr
+
+install:
+  - Rscript -e "if (!require('ggplot2')) install.packages('ggplot2', dependencies=TRUE)"
+  - Rscript -e "if (!require('rgenoud')) install.packages('rgenoud', dependencies=TRUE)"
+  - Rscript -e "if (!require('devtools')) install.packages('devtools', dependencies=TRUE)"
+  - Rscript -e "if (!require('rmarkdown')) install.packages('rmarkdown', dependencies=TRUE)"
+  - Rscript -e "if (!require('Matching')) install.packages('Matching', dependencies=TRUE)"
+  - Rscript -e "if (!require('cem')) install.packages('cem', dependencies=TRUE)"
+  - Rscript -e "if (!require('dplyr')) install.packages('dplyr', dependedncies=TRUE)"
+  - Rscript -e "if (!require('magrittr')) install.packages('magrittr', dependencies=TRUE)"
+  - Rscript -e "devtools::install_github('ivyleavedtoadflax/bookdown', dependencies=TRUE)"
 
 before_script:
   - chmod +x ./_build.sh

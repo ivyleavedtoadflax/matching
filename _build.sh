@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 
-Rmarkdown::render(
+rmarkdown::render(
     input = "index.Rmd", 
     out_format = "html", 
     out_file = "index.html"

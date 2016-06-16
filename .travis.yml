@@ -10,6 +10,7 @@ r_packages:
   - magrittr
 
 install:
+  - Rscript -e "if (!require('devtools')) install.packages('devtools')"
   - Rscript -e "if (!require('rmarkdown')) install.packages('rmarkdown')"
   - Rscript -e "if (!require('Matching')) install.packages('Matching')"
   - Rscript -e "if (!require('cem')) install.packages('cem')"

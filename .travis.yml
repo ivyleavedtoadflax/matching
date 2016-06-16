@@ -2,6 +2,9 @@ language: r
 sudo: required
 cache: packages
 
+git:
+  depth: 3
+
 r_packages:
   - rmarkdown
   - Matching
@@ -11,7 +14,7 @@ r_packages:
 
 install:
   - Rscript -e "if (!require('ggplot2')) install.packages('ggplot2', dependencies=TRUE)"
-#  - Rscript -e "if (!require('rgenoud')) install.packages('rgenoud', dependencies=TRUE)"
+  - Rscript -e "if (!require('rgenoud')) install.packages('rgenoud', dependencies=TRUE)"
   - Rscript -e "if (!require('devtools')) install.packages('devtools', dependencies=TRUE)"
   - Rscript -e "if (!require('rmarkdown')) install.packages('rmarkdown', dependencies=TRUE)"
   - Rscript -e "if (!require('Matching')) install.packages('Matching', dependencies=TRUE)"

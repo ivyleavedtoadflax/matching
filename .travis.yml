@@ -19,7 +19,7 @@ install:
   - Rscript -e "if (!require('rmarkdown')) install.packages('rmarkdown', dependencies=TRUE)"
   - Rscript -e "if (!require('Matching')) install.packages('Matching', dependencies=TRUE)"
   - Rscript -e "if (!require('cem')) install.packages('cem', dependencies=TRUE)"
-  - Rscript -e "if (!require('dplyr')) install.packages('dplyr', dependedncies=TRUE)"
+  - Rscript -e "if (!require('dplyr')) install.packages('dplyr', dependencies=TRUE)"
   - Rscript -e "if (!require('magrittr')) install.packages('magrittr', dependencies=TRUE)"
   - Rscript -e "devtools::install_github('ivyleavedtoadflax/bookdown', dependencies=TRUE)"
 
